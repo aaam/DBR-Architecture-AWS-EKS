@@ -893,144 +893,170 @@ Everything else — CV analysis, compositing, encoding, ad scheduling, proof-of-
 
 The next design iteration requires the real fixture calendar, concurrent match counts, markets per match, source/output formats, contractual latency and reliability targets, plus the benchmark results listed in §7. With those inputs, the capacity and cost models can be recalculated, instance families selected by role, and the node-pool/pod specifications and failover state machine completed.
 
-Document conventions
-Term	Meaning
-DBR	Digital Board Replacement (virtual replacement of perimeter LED board content)
-[A] / [R] / [V]	Assumption / Recommendation / Verify at design freeze (§0 markers)
-INH / DC / AWS / MIG (+ number)	Challenge-register ID prefixes: inherent / current data centre / AWS-EKS / migration (§4)
-K	Territory (market) outputs per match
-N	Concurrent matches (§0.1); in §5 gates, N and M are separate placeholders for match counts
-M_s, K_m, A_m, R_m, G_m	Capacity-model variables: concurrent matches in slot s, outputs of match m, analysis GPUs, render GPUs, total GPUs per replica (§3.10)
-A/B	The two redundant processing replicas
-1+1, N+1	One active plus one standby; N units plus one spare
-Broadcast and venue
-Term	Meaning
-OB	Outside Broadcast (production compound or truck at the stadium)
-PGM	Programme output (the on-air "world" feed from the vision mixer)
-ISO	Isolated camera feed (not the ISO 27001 standard)
-CCU	Camera Control Unit
-MCR	Master Control Room (the broadcaster's)
-IBC	International Broadcast Centre
-EVS	Vendor name, used generically for live replay servers
-DVE	Digital Video Effects (split screens, squeeze-backs, wipes)
-VAR	Video Assistant Referee
-IR	Infrared (marker-based board systems)
-CV	Computer Vision
-IRD	Integrated Receiver/Decoder
-LNB / BUC	Low-Noise Block downconverter / Block Upconverter (satellite dish electronics)
-DVB-S2	Digital Video Broadcasting, Satellite, second generation
-DWDM	Dense Wavelength Division Multiplexing
-OTT	Over-the-Top (internet delivery to viewers)
-Video, timing and transport
-Term	Meaning
-SDI	Serial Digital Interface (HD-SDI 1.5G, 3G-SDI, 12G-SDI)
-SMPTE / ST	Society of Motion Picture and Television Engineers / its standards
-ST 2110	Professional media over IP (-20 uncompressed video, -21 sender timing, -22 compressed video, e.g. JPEG XS)
-ST 2059-2	PTP profile for broadcast timing
-ST 2022-6 / -7	SDI over IP / seamless packet-level protection switching
-PTP / NTP	Precision Time Protocol / Network Time Protocol
-PHC	PTP Hardware Clock
-GM	Grandmaster (PTP master clock)
-GNSS	Global Navigation Satellite System
-SRT	Secure Reliable Transport
-RIST	Reliable Internet Stream Transport (Simple / Main profiles)
-RTP	Real-time Transport Protocol
-Zixi	Proprietary transport protocol (product name)
-CDI	Cloud Digital Interface (AWS uncompressed-video transport)
-J2K / XS	JPEG 2000 / JPEG XS (compressed mezzanine codecs)
-ARQ / FEC	Automatic Repeat reQuest / Forward Error Correction
-HLS / DASH / CMAF	HTTP Live Streaming / Dynamic Adaptive Streaming over HTTP / Common Media Application Format
-1080i50, 1080p50, 2160p50	Resolution, interlaced (i) or progressive (p), 50 fields or frames per second
-4:2:2 / 4:2:0	Chroma subsampling schemes
-NV12 / P010 / v210	Pixel formats: 8-bit 4:2:0 / 10-bit 4:2:0 / packed 10-bit 4:2:2
-BT.709 / BT.2020	ITU-R colour standards (HD / UHD)
-HLG / UHD / HDR	Hybrid Log-Gamma / Ultra High Definition / High Dynamic Range
-ANC	Ancillary data (carried in the SDI/IP stream)
-TC / ATC	Timecode / Ancillary Time Code (carrying LTC or VITC)
-LTC / VITC	Linear Timecode / Vertical Interval Timecode
-AFD	Active Format Description
-SCTE-104 / -35	Ad-insertion signalling standards (on SDI / in transport streams)
-SEI	Supplemental Enhancement Information (H.264/HEVC metadata NAL units)
-PTS / DTS	Presentation / Decoding Time Stamp
-GOP / IDR	Group of Pictures / Instantaneous Decoder Refresh frame
-ASRC	Asynchronous Sample-Rate Conversion (audio)
-ppm	Parts per million (clock drift)
-PWM	Pulse-Width Modulation (LED board dimming)
-GPU and ML
-Term	Meaning
-NVENC / NVDEC	NVIDIA fixed-function hardware video encoder / decoder
-CUDA / cuDNN	NVIDIA compute platform / deep-neural-network library
-TRT / TensorRT	NVIDIA inference optimiser; produces per-GPU "engines"
-ONNX	Open Neural Network Exchange (model format)
-TF32 / FP32	TensorFloat-32 / 32-bit floating point
-SM	Streaming Multiprocessor
-MIG	Multi-Instance GPU (hardware partitioning); not the migration ID prefix
-MPS	Multi-Process Service (GPU sharing)
-DCGM	NVIDIA Data Center GPU Manager (telemetry)
-XID	NVIDIA driver error-event code
-ECC / SBE / DBE	Error-Correcting Code / Single- / Double-Bit Error
-P2P	Peer-to-peer (GPU-to-GPU transfers)
-PCIe, NVMe	PCI Express, Non-Volatile Memory Express
-IoU	Intersection over Union (mask overlap metric)
-PSNR	Peak Signal-to-Noise Ratio
-VMAF	Video Multimethod Assessment Fusion (perceptual quality metric)
-G5/G6/G6e/G7/G7e	EC2 GPU instance families (A10G / L4 / L40S / RTX PRO 4500 / RTX PRO 6000)
-Inf2 / Trn1	AWS Inferentia2 / Trainium1 (Neuron accelerators)
-SKU	Stock-keeping unit (a specific instance or GPU model)
-AWS
-Term	Meaning
-AZ	Availability Zone
-VPC	Virtual Private Cloud
-TGW	Transit Gateway
-DX	Direct Connect
-GA	Global Accelerator (as in "NLB/GA")
-NLB	Network Load Balancer
-ENI / ENA	Elastic Network Interface / Elastic Network Adapter
-EC2 / EKS / ECR	Elastic Compute Cloud / Elastic Kubernetes Service / Elastic Container Registry
-S3 / EBS / EFS / RDS	Simple Storage Service / Elastic Block Store / Elastic File System / Relational Database Service
-AMI	Amazon Machine Image
-ODCR	On-Demand Capacity Reservation
-IAM / KMS	Identity and Access Management / Key Management Service
-IMDSv2	Instance Metadata Service, version 2
-MSK	Managed Streaming for Apache Kafka
-AMP / AMG	Amazon Managed Service for Prometheus / Amazon Managed Grafana
-FIS	Fault Injection Service
-SOCI / OCI	Seekable OCI (lazy image loading) / Open Container Initiative
-Kubernetes and platform
-Term	Meaning
-CNI / CSI	Container Network Interface / Container Storage Interface
-CA	Cluster Autoscaler
-PDB	PodDisruptionBudget
-DRA	Dynamic Resource Allocation
-CFS	Completely Fair Scheduler (Linux CPU quota/throttling)
-NUMA	Non-Uniform Memory Access
-SR-IOV / VF	Single Root I/O Virtualization / Virtual Function
-DPDK	Data Plane Development Kit
-BGP / VIP / PKI	Border Gateway Protocol / Virtual IP / Public Key Infrastructure
-VRF / VLAN	Virtual Routing and Forwarding / Virtual LAN
-IGMP / PIM	Internet Group Management Protocol / Protocol Independent Multicast
-RDBMS / TSDB	Relational / Time-Series Database
-OOB / MGMT	Out-of-band / management network
-IPMI	Intelligent Platform Management Interface
-KVM	Keyboard-Video-Mouse switch here, not the hypervisor
-Facility, operations and compliance
-Term	Meaning
-DC	Data centre (also the "DC-n" challenge IDs)
-UPS / PDU / PSU / ATS	Uninterruptible Power Supply / Power Distribution Unit / Power Supply Unit / Automatic Transfer Switch
-CRAC / CRAH / DLC	Computer Room Air Conditioner / Air Handler / Direct Liquid Cooling
-RMA	Return Merchandise Authorization
-HA / DR	High Availability / Disaster Recovery
-SLO / SLA	Service Level Objective / Agreement
-RTT	Round-trip time
-QC / QA	Quality Control / Quality Assurance
-GC	Garbage collection (as in "GC/IO stall")
-TCO	Total Cost of Ownership
-GDPR / DPIA	General Data Protection Regulation / Data Protection Impact Assessment
-TPN	Trusted Partner Network (media-industry security assessment programme)
-SOC 2 / ISO 27001	Security and compliance audit standards
-Ambiguities worth knowing about
-MIG: Multi-Instance GPU in the technical sections, migration in the register IDs (MIG-1…12).
-DC: data centre in prose, and the ID prefix for current-architecture challenges.
-N: concurrent matches in §0.1, a gate placeholder in §5.
-ISO: isolated camera feed in the signal-flow sections, ISO 27001 in §3.12.
-GA: Global Accelerator, not general availability.
+# DBR Architecture — Glossary of Abbreviations
+
+Companion to `DBR_Architecture-2`. The source document expands very few of these terms itself, so the expansions below are standard industry usage rather than quotations from it. Ubiquitous terms (CPU, TCP/UDP, NAT, VPN, API, SDK) are omitted.
+
+## Document conventions
+
+| Term | Meaning |
+| --- | --- |
+| DBR | Digital Board Replacement (virtual replacement of perimeter LED board content) |
+| [A] / [R] / [V] | Assumption / Recommendation / Verify at design freeze (§0 markers) |
+| INH / DC / AWS / MIG (+ number) | Challenge-register ID prefixes: inherent / current data centre / AWS-EKS / migration (§4) |
+| K | Territory (market) outputs per match |
+| N | Concurrent matches (§0.1); in §5 gates, N and M are separate placeholders for match counts |
+| M_s, K_m, A_m, R_m, G_m | Capacity-model variables: concurrent matches in slot s, outputs of match m, analysis GPUs, render GPUs, total GPUs per replica (§3.10) |
+| A/B | The two redundant processing replicas |
+| 1+1, N+1 | One active plus one standby; N units plus one spare |
+
+## Broadcast and venue
+
+| Term | Meaning |
+| --- | --- |
+| OB | Outside Broadcast (production compound or truck at the stadium) |
+| PGM | Programme output (the on-air "world" feed from the vision mixer) |
+| ISO | Isolated camera feed (not the ISO 27001 standard) |
+| CCU | Camera Control Unit |
+| MCR | Master Control Room (the broadcaster's) |
+| IBC | International Broadcast Centre |
+| EVS | Vendor name, used generically for live replay servers |
+| DVE | Digital Video Effects (split screens, squeeze-backs, wipes) |
+| VAR | Video Assistant Referee |
+| IR | Infrared (marker-based board systems) |
+| CV | Computer Vision |
+| IRD | Integrated Receiver/Decoder |
+| LNB / BUC | Low-Noise Block downconverter / Block Upconverter (satellite dish electronics) |
+| DVB-S2 | Digital Video Broadcasting, Satellite, second generation |
+| DWDM | Dense Wavelength Division Multiplexing |
+| OTT | Over-the-Top (internet delivery to viewers) |
+
+## Video, timing and transport
+
+| Term | Meaning |
+| --- | --- |
+| SDI | Serial Digital Interface (HD-SDI 1.5G, 3G-SDI, 12G-SDI) |
+| SMPTE / ST | Society of Motion Picture and Television Engineers / its standards |
+| ST 2110 | Professional media over IP (-20 uncompressed video, -21 sender timing, -22 compressed video, e.g. JPEG XS) |
+| ST 2059-2 | PTP profile for broadcast timing |
+| ST 2022-6 / -7 | SDI over IP / seamless packet-level protection switching |
+| PTP / NTP | Precision Time Protocol / Network Time Protocol |
+| PHC | PTP Hardware Clock |
+| GM | Grandmaster (PTP master clock) |
+| GNSS | Global Navigation Satellite System |
+| SRT | Secure Reliable Transport |
+| RIST | Reliable Internet Stream Transport (Simple / Main profiles) |
+| RTP | Real-time Transport Protocol |
+| Zixi | Proprietary transport protocol (product name) |
+| CDI | Cloud Digital Interface (AWS uncompressed-video transport) |
+| J2K / XS | JPEG 2000 / JPEG XS (compressed mezzanine codecs) |
+| ARQ / FEC | Automatic Repeat reQuest / Forward Error Correction |
+| HLS / DASH / CMAF | HTTP Live Streaming / Dynamic Adaptive Streaming over HTTP / Common Media Application Format |
+| 1080i50, 1080p50, 2160p50 | Resolution, interlaced (i) or progressive (p), 50 fields or frames per second |
+| 4:2:2 / 4:2:0 | Chroma subsampling schemes |
+| NV12 / P010 / v210 | Pixel formats: 8-bit 4:2:0 / 10-bit 4:2:0 / packed 10-bit 4:2:2 |
+| BT.709 / BT.2020 | ITU-R colour standards (HD / UHD) |
+| HLG / UHD / HDR | Hybrid Log-Gamma / Ultra High Definition / High Dynamic Range |
+| ANC | Ancillary data (carried in the SDI/IP stream) |
+| TC / ATC | Timecode / Ancillary Time Code (carrying LTC or VITC) |
+| LTC / VITC | Linear Timecode / Vertical Interval Timecode |
+| AFD | Active Format Description |
+| SCTE-104 / -35 | Ad-insertion signalling standards (on SDI / in transport streams) |
+| SEI | Supplemental Enhancement Information (H.264/HEVC metadata NAL units) |
+| PTS / DTS | Presentation / Decoding Time Stamp |
+| GOP / IDR | Group of Pictures / Instantaneous Decoder Refresh frame |
+| ASRC | Asynchronous Sample-Rate Conversion (audio) |
+| ppm | Parts per million (clock drift) |
+| PWM | Pulse-Width Modulation (LED board dimming) |
+
+## GPU and ML
+
+| Term | Meaning |
+| --- | --- |
+| NVENC / NVDEC | NVIDIA fixed-function hardware video encoder / decoder |
+| CUDA / cuDNN | NVIDIA compute platform / deep-neural-network library |
+| TRT / TensorRT | NVIDIA inference optimiser; produces per-GPU "engines" |
+| ONNX | Open Neural Network Exchange (model format) |
+| TF32 / FP32 | TensorFloat-32 / 32-bit floating point |
+| SM | Streaming Multiprocessor |
+| MIG | Multi-Instance GPU (hardware partitioning); *not* the migration ID prefix |
+| MPS | Multi-Process Service (GPU sharing) |
+| DCGM | NVIDIA Data Center GPU Manager (telemetry) |
+| XID | NVIDIA driver error-event code |
+| ECC / SBE / DBE | Error-Correcting Code / Single- / Double-Bit Error |
+| P2P | Peer-to-peer (GPU-to-GPU transfers) |
+| PCIe, NVMe | PCI Express, Non-Volatile Memory Express |
+| IoU | Intersection over Union (mask overlap metric) |
+| PSNR | Peak Signal-to-Noise Ratio |
+| VMAF | Video Multimethod Assessment Fusion (perceptual quality metric) |
+| G5/G6/G6e/G7/G7e | EC2 GPU instance families (A10G / L4 / L40S / RTX PRO 4500 / RTX PRO 6000) |
+| Inf2 / Trn1 | AWS Inferentia2 / Trainium1 (Neuron accelerators) |
+| SKU | Stock-keeping unit (a specific instance or GPU model) |
+
+## AWS
+
+| Term | Meaning |
+| --- | --- |
+| AZ | Availability Zone |
+| VPC | Virtual Private Cloud |
+| TGW | Transit Gateway |
+| DX | Direct Connect |
+| GA | Global Accelerator (as in "NLB/GA") |
+| NLB | Network Load Balancer |
+| ENI / ENA | Elastic Network Interface / Elastic Network Adapter |
+| EC2 / EKS / ECR | Elastic Compute Cloud / Elastic Kubernetes Service / Elastic Container Registry |
+| S3 / EBS / EFS / RDS | Simple Storage Service / Elastic Block Store / Elastic File System / Relational Database Service |
+| AMI | Amazon Machine Image |
+| ODCR | On-Demand Capacity Reservation |
+| IAM / KMS | Identity and Access Management / Key Management Service |
+| IMDSv2 | Instance Metadata Service, version 2 |
+| MSK | Managed Streaming for Apache Kafka |
+| AMP / AMG | Amazon Managed Service for Prometheus / Amazon Managed Grafana |
+| FIS | Fault Injection Service |
+| SOCI / OCI | Seekable OCI (lazy image loading) / Open Container Initiative |
+
+## Kubernetes and platform
+
+| Term | Meaning |
+| --- | --- |
+| CNI / CSI | Container Network Interface / Container Storage Interface |
+| CA | Cluster Autoscaler |
+| PDB | PodDisruptionBudget |
+| DRA | Dynamic Resource Allocation |
+| CFS | Completely Fair Scheduler (Linux CPU quota/throttling) |
+| NUMA | Non-Uniform Memory Access |
+| SR-IOV / VF | Single Root I/O Virtualization / Virtual Function |
+| DPDK | Data Plane Development Kit |
+| BGP / VIP / PKI | Border Gateway Protocol / Virtual IP / Public Key Infrastructure |
+| VRF / VLAN | Virtual Routing and Forwarding / Virtual LAN |
+| IGMP / PIM | Internet Group Management Protocol / Protocol Independent Multicast |
+| RDBMS / TSDB | Relational / Time-Series Database |
+| OOB / MGMT | Out-of-band / management network |
+| IPMI | Intelligent Platform Management Interface |
+| KVM | Keyboard-Video-Mouse switch here, not the hypervisor |
+
+## Facility, operations and compliance
+
+| Term | Meaning |
+| --- | --- |
+| DC | Data centre (also the "DC-n" challenge IDs) |
+| UPS / PDU / PSU / ATS | Uninterruptible Power Supply / Power Distribution Unit / Power Supply Unit / Automatic Transfer Switch |
+| CRAC / CRAH / DLC | Computer Room Air Conditioner / Air Handler / Direct Liquid Cooling |
+| RMA | Return Merchandise Authorization |
+| HA / DR | High Availability / Disaster Recovery |
+| SLO / SLA | Service Level Objective / Agreement |
+| RTT | Round-trip time |
+| QC / QA | Quality Control / Quality Assurance |
+| GC | Garbage collection (as in "GC/IO stall") |
+| TCO | Total Cost of Ownership |
+| GDPR / DPIA | General Data Protection Regulation / Data Protection Impact Assessment |
+| TPN | Trusted Partner Network (media-industry security assessment programme) |
+| SOC 2 / ISO 27001 | Security and compliance audit standards |
+
+## Ambiguities worth knowing about
+
+- **MIG:** Multi-Instance GPU in the technical sections, migration in the register IDs (MIG-1…12).
+- **DC:** data centre in prose, and the ID prefix for current-architecture challenges.
+- **N:** concurrent matches in §0.1, a gate placeholder in §5.
+- **ISO:** isolated camera feed in the signal-flow sections, ISO 27001 in §3.12.
+- **GA:** Global Accelerator, not general availability.
