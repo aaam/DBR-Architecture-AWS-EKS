@@ -1,4 +1,4 @@
-# Digital Board Replacement (DBR) for Virtual Perimeter Advertising — Current On-Prem GPU/Kubernetes Architecture → AWS/EKS Target Architecture
+# Digital Board Replacement (DBR) for Virtual Perimeter Advertising - Current On-Prem GPU/Kubernetes Architecture → AWS/EKS Target Architecture
 
 **Document type:** reference architecture + risk register + migration design
 
@@ -35,7 +35,7 @@ The markers distinguish facts, assumptions, recommendations and items that must 
 - **AWS does provide limited multicast through Transit Gateway**, but this is not a broadcast-grade ST 2110 fabric: the documented multicast limits include a non-adjustable 1 Gb/s per flow and 20 Gb/s aggregate per AZ (plus per-flow packet-rate limits), multicast is not routed over Direct Connect attachments, and fragmented multicast packets are dropped. A single uncompressed 1080i50/1080p50 ST 2110-20 flow (~1.1–2.5 Gb/s, §1.3) therefore already exceeds the per-flow limit. AWS VPC networking also does not provide SDI, genlock or a general-purpose SMPTE ST 2059-2 timing plant. Amazon Time Sync Service provides NTP; supported Linux EC2 instances in a `precision-time` placement group can expose a PTP Hardware Clock (PHC) with microsecond-class synchronization. That is not equivalent to a broadcast grandmaster/genlock chain. [V: validate the exact instance family, AZ and placement-group support.]
 - **Do not assume live migration for GPU-backed EC2 instances.** Design for scheduled maintenance, stop/start or replacement events, and retain an independent hot path; confirm lifecycle behaviour for the exact instance family.
 - **NVENC/NVDEC are fixed-function engines separate from CUDA cores.** They only accelerate supported codecs, chroma formats, bit depths and profiles. The actual bottleneck may be codec engines, CUDA inference, compositing, memory traffic, host decode/encode or network I/O; measure the full pipeline.
-- **MIG is GPU-specific, not universal.** A10G/L4/L40S do not provide MIG, while NVIDIA lists Ampere A30/A100, Hopper and selected Blackwell GPUs—including RTX PRO 4500/6000 Blackwell—as MIG-capable. The RTX PRO 4500 Blackwell supports up to two MIG instances and RTX PRO 6000 Blackwell up to four. [V: verify MIG mode, driver, GPU profile and EKS DRA support on the exact EC2 SKU.] DRA is a Kubernetes allocation API; it does not itself create hardware isolation.
+- **MIG is GPU-specific, not universal.** A10G/L4/L40S do not provide MIG, while NVIDIA lists Ampere A30/A100, Hopper and selected Blackwell GPUs-including RTX PRO 4500/6000 Blackwell-as MIG-capable. The RTX PRO 4500 Blackwell supports up to two MIG instances and RTX PRO 6000 Blackwell up to four. [V: verify MIG mode, driver, GPU profile and EKS DRA support on the exact EC2 SKU.] DRA is a Kubernetes allocation API; it does not itself create hardware isolation.
 
 ---
 
@@ -99,6 +99,7 @@ This section exists because every architectural decision below is a consequence 
 [12] Encode per market : NVENC only for supported codec/profile/chroma/bit-depth combinations and presets; JPEG 2000/JPEG XS require a separate codec implementation/SDK or hardware encoder
 [13] Egress            : SRT/RIST/Zixi/JPEG XS/JPEG 2000 as required → broadcaster, with audio + ANC delayed identically
 ```
+![Haivision Makito X4 encoders at news, sports-venue and remote-talent sites sending SDI over SRT through a cloud SRT gateway to decoders at a broadcast facility, with a return feed](images/_N26VIwX22jiqMJ05v_o_DLjpv_X6qf8Swerwos__aNDg2Oc2OMWfLg-r0_YkP3XRqRvoVYwuhYR7GBPrVGNgUy1bXlHuLpULDKN3v07H4j-P9XREzuaIORZ0Qe3prv4XWP2FZ7fuK4oV9wW3G3nktmYyRdp9dntzCrKpHYsBhzZGoeiyGmgqDMZdul9ejK3.jpeg "Multi-source SRT contribution through a cloud gateway")
 
 **Critical structural consequence:** steps [2]–[8] are **market-independent**. Steps [9]–[13] are **per-market**.
 
@@ -127,13 +128,13 @@ Consequences you cannot escape:
 - Uncompressed 1080p50 is about 995 GB/hour (276.48 MB/s × 3,600 s). At an illustrative cross-AZ rate of ~$0.01/GB in each direction (~$0.02/GB counting both sides), moving one such stream across AZs is roughly **$20/hour per stream**, before any additional service charges. NAT processing can add material cost; exact rates vary by region and path. **Recommendation:** keep decode/analysis/composite/encode node-local where possible. If multiple GPUs are required, keep them on one node and explicitly benchmark PCIe/GPU-P2P transfers; do not send raw frames across AZs, and do not make inter-node raw-frame transport the default design.
 - Compressed 20 Mb/s egress to the public internet is about 9 GB/hour, or ~$0.8/hour per market at an illustrative $0.09/GB. Ten markets × 2.5 hours is about **$20/match** on that assumed rate. The actual bill depends on destination, region, tiering and whether delivery uses internet egress, Direct Connect or a managed media service. Egress is material, but GPU-hours may still dominate.
 
-### 1.4 Interlace, graphics and replays — the three things that break naive pipelines
+### 1.4 Interlace, graphics and replays - the three things that break naive pipelines
 
 - **1080i50:** 50 fields/s are captured 20 ms apart and paired into 25 interlaced frames/s. The two fields can contain different motion positions. Treating an interlaced frame as a progressive image can create combing and unstable board/player edges. Options include field-aware processing at 50 fields/s, motion-adaptive deinterlace → process → reinterlace, or conversion upstream. Each changes latency, vertical detail and inference workload; test on representative pans and fast player motion.
 - **On-screen graphics** (scorebug, lower thirds, VAR lines, replay wipes, split screens) are in front of the world feed. Your composite must not paint over them and must not treat them as pitch/boards. A DVE/split-screen replay can contain two different camera geometries in one frame.
-- **Replays:** if you process only PGM, replays are processed automatically but arrive as slow motion / different camera / possibly different speed ramps — temporal trackers must handle 0.25×–3× and reversed playback. If you process ISOs and re-switch, replay sources (EVS) are separate feeds you must also cover, otherwise a replay shows the original physical ads — a contractual breach.
+- **Replays:** if you process only PGM, replays are processed automatically but arrive as slow motion / different camera / possibly different speed ramps - temporal trackers must handle 0.25×–3× and reversed playback. If you process ISOs and re-switch, replay sources (EVS) are separate feeds you must also cover, otherwise a replay shows the original physical ads - a contractual breach.
 
-### 1.5 Latency budget — worked example (1080p50, continental)
+### 1.5 Latency budget - worked example (1080p50, continental)
 | Stage | Typical | Note |
 | --- | --- | --- |
 | Contribution encode (J2K) | 20–40 ms | ~1–2 frames; XS: <5 ms |
@@ -161,11 +162,11 @@ If your ingest and egress clocks differ by 100 ppm, over a 2-hour match the rela
 
 - **preserve source media timestamps, PTS/DTS and embedded timecode at ingest**, estimate the source media clock, and schedule egress against that media timeline. Do not treat EC2 wall-clock NTP/PHC as a substitute for source programme time. Apply asynchronous sample-rate conversion for audio and an explicit, audited frame/field drop-repeat policy for video;
 - **keep audio and video in the same delay line** so lip-sync and commentary alignment survive;
-- **preserve or re-insert ANC** (ATC timecode carrying LTC/VITC, AFD, closed captions, SCTE-104/35, Dolby metadata). Many IP/cloud paths silently drop ANC. Proof-of-play must be referenced to broadcast timecode, not wall clock — so if ANC is lost you must embed your own reference (e.g. SEI) and carry a mapping.
+- **preserve or re-insert ANC** (ATC timecode carrying LTC/VITC, AFD, closed captions, SCTE-104/35, Dolby metadata). Many IP/cloud paths silently drop ANC. Proof-of-play must be referenced to broadcast timecode, not wall clock - so if ANC is lost you must embed your own reference (e.g. SEI) and carry a mapping.
 
 ---
 
-## 2. CURRENT ARCHITECTURE — own data centre, GPU park, Kubernetes
+## 2. CURRENT ARCHITECTURE - own data centre, GPU park, Kubernetes
 
 ### 2.1 End-to-end signal flow
 
@@ -208,6 +209,8 @@ The following is an illustrative baseline, not a verified inventory of the exist
                ▼
    Downstream: playout, local graphics/commentary, distribution
 ```
+![AJA BRIDGE LIVE 12G-4 contribution from an OB truck over two ISP paths using H.264/5 via SRT to a broadcast facility, with a confidence-monitoring return feed](images/-XPPP1HkrR2xtoRI1c3VgoWFvoVSajqr_HNCZm68IZAofIFYZSFW7E9IryuITndnrtZ0KDB3uua6nxaYEusVn1t0QJBqWgfhoUvdA4pDQApxkbVGirggDTFs-HxNwl8NmVU3VVDiZBKPb0HcTv6Lxp1FiAL65UzVDs2ySBawYabKSSJdbfcRdg_k0eT_RlOS.jpeg "Live contribution with path redundancy")
+
 ### 2.2 Facility & hardware layer
 | Layer | Content | Engineering constraints |
 | --- | --- | --- |
@@ -270,7 +273,7 @@ The following is an illustrative baseline, not a verified inventory of the exist
 - **Per match:** 1+1 hot processing replicas (A/B), preferably in separate racks, power feeds and network failure domains (a single DC has no AZs), both receiving equivalent time-aligned source media. Select between them using a broadcast-aware frame/field switch at the physical edge unless the encoded outputs are demonstrably binary-identical and suitable for packet merge. SMPTE 2022-7 is packet protection for identical redundant streams; it is not a general selector for two independently rendered outputs.
 - **Fail-to-clean:** a hardware bypass path carrying the unmodified world feed delayed by the same amount, so switching does not jump time. **Never fail to black, never fail to frozen.**
 - **Node/GPU:** N+1 spare capacity, spare GPUs on shelf, spares for NICs/PSUs.
-- **Site:** the honest answer for most single-DC operators is **no true site redundancy** — a second DC with genlocked broadcast glue, teleport diversity and duplicate GPUs is a large capex step. This is usually the strongest single argument for the cloud move.
+- **Site:** the honest answer for most single-DC operators is **no true site redundancy** - a second DC with genlocked broadcast glue, teleport diversity and duplicate GPUs is a large capex step. This is usually the strongest single argument for the cloud move.
 
 ### 2.7 Cold start reality (applies to both architectures)
 
@@ -295,7 +298,7 @@ Football demand is extremely peaky [A]:
 - **Midweek European competition:** a slot with many concurrent matches (the current league-phase formats concentrate ~9 fixtures per evening, split across two kickoff times) [V: exact competition format/slots per season].
 - **Otherwise:** near-zero live load (only training, asset prep, catch-up re-renders, QA).
 
-**A peak-to-mean ratio of 5–15× is an illustrative planning assumption [A], not a universal industry constant.** Calculate the ratio from the actual fixture calendar and offline workload. A DC sized for peak can be idle much of the week; a DC sized for mean cannot deliver peak. That asymmetry, plus single-site risk and hardware lead time, may form the business case — not an assumption that cloud is cheaper per GPU-hour (it may not be at high utilisation).
+**A peak-to-mean ratio of 5–15× is an illustrative planning assumption [A], not a universal industry constant.** Calculate the ratio from the actual fixture calendar and offline workload. A DC sized for peak can be idle much of the week; a DC sized for mean cannot deliver peak. That asymmetry, plus single-site risk and hardware lead time, may form the business case - not an assumption that cloud is cheaper per GPU-hour (it may not be at high utilisation).
 
 TCO comparison must be like-for-like:
 
@@ -311,7 +314,7 @@ Cloud $/match = GPU-hours (incl. HA + idle reserve + reservations) + transport +
 
 ---
 
-## 3. TARGET ARCHITECTURE — AWS + EKS
+## 3. TARGET ARCHITECTURE - AWS + EKS
 
 ### 3.1 Design principles, each derived from a constraint above
 | # | Principle | Derived from |
@@ -327,26 +330,29 @@ Cloud $/match = GPU-hours (incl. HA + idle reserve + reservations) + transport +
 | P9 | Keep a physical/timing island (stadium, OB, teleport, MCR handoff) on prem or at a partner facility. | Physics and SMPTE reality |
 | P10 | Semantic monitoring, not just process monitoring. | A silently empty matte looks like a healthy feed but breaches contracts |
 
-### 3.2 Topology options — choose deliberately
+### 3.2 Topology options - choose deliberately
 
-**Option A — Centralised cloud rendering** (closest to today's model)
+**Option A - Centralised cloud rendering** (closest to today's model)
 
 - Stadium → contribution → one AWS region → K rendered market feeds → K broadcasters.
 - Simple, one place to operate, highest egress and longest paths for distant markets.
 
-**Option B — Multi-region, source-local processing**
+**Option B - Multi-region, source-local processing**
 
 - Process in the region nearest the contribution source/IBC; fan out per-market from there. Optionally a second region for markets on another continent, receiving one clean feed + metadata.
 - Minimises total path; multiplies platform footprint and capacity reservations.
+  ![Stadium cameras and audio feeding encoders and a router, connected through the S.T.E.P xFunction cloud to a broadcaster (STV) and a Sapporo data centre (HOTnet); labels in Japanese](images/b_4yhQmuEk0gHMrogwdic4xzUQcZ2tXCwbxkxlUAKdBKZ8Ka9mw5eI6_ZHKys-4gGO8VHdDj15UuspEQ8fWPF7m2hTOrYv1Yb9tHMwEuherUXLqpL9ljHvtyRfPsOBdsvdbzl-jHskeZGSD1UEhAKc0g5PGVj_H_y9GWnguiX2_Fd05TVmAXhdV3DMpJ7wEf.jpeg "Venue to regional data centre to broadcaster")
 
-**Option C — Central analysis, distributed rendering ("metadata + clean feed")**
+**Option C - Central analysis, distributed rendering ("metadata + clean feed")**
 
 - Cloud runs the shared analysis stages [2]–[8] once and distributes a time-aligned source picture plus the data needed to reproduce the composite at each edge. The interface must be explicit: either the original PGM plus board geometry and foreground/occlusion mattes, or a clean plate plus foreground/occlusion layers, slot IDs and a versioned playlist. A clean feed without the foreground/occlusion information is not sufficient to preserve players and staff in front of the boards.
 - This can reduce cloud encoding from K outputs to one source feed plus compact metadata, but every edge site still needs a renderer, encoder, synchronised media clock, and fail-to-clean path. The bandwidth benefit depends on the number and geography of edge sites; it is not automatically one egress stream for the entire service. Costs include edge fleet operations, secure clean-feed handling, monitoring, synchronisation and ownership of the matte/metadata interface. It is attractive where renderers can be placed at broadcaster facilities, but requires a separately validated product and operational model.
+  ![Live video feed distribution across a mesh of content-fabric nodes with multi-path routing and SRT output to affiliates, with and without a local fabric node](images/_f3ghWcT_NRq2oMnTNcZ7grkloEkGk6V6Iho0ryQIXDz9SP3FHqrL3eDdHB_YKgMPTbwdYsDDtILGtU-yg6dss2gEXjYED6InV9X9GuIT02IbCSnflfcwqFuM34Oo0Zbdu4uQSCgLYkux4_ChAJ2pjjXdXelehimilqdsNRVtoBo3KDiaHqVZJEn1qWGWJpp.jpeg "Multi-path ultra-low-latency distribution fabric")
 
-**Option D — Hybrid island (recommended transitional and probably permanent)**
+**Option D - Hybrid island (recommended transitional and probably permanent)**
 
 - Physical/timing edge stays on prem; cloud does analysis + rendering; a small on-prem footprint keeps SDI/genlock/2022-7/bypass and acts as the last-resort clean path.
+![Hybrid on-premises and cloud live production with SRT gateways linking cameras, 5G, a confidence monitor, and cloud editor, playout, switcher, multiviewer and CDN](images/hoKXpu6nTsllXRXHen5e-ohj-jps-81Cybo_GNTbyz1T5B8u8_n8KXKPdSsIux5g58cWGyB5xDX0lA53cOzpJA3sE5u54VmWl4ge-k8_-RgE_o5gqVg0OxUnDvrtxCzoJA37LBbHnl1dkxfsIn8liJchCcJXNRXASrDU0Gei2rKgqoZ1mANtyN_b4UlIVKjZ.jpeg "Hybrid on-prem and cloud workflow over SRT")
 
 | AWS placement option | What it can realistically do here | Caveats |
 | --- | --- | --- |
@@ -399,6 +405,7 @@ OFFLINE (no live SLA)
 ```
 
 The two live replicas receive equivalent source media over independent paths and process independently in separate AZs. Keep each replica's raw-frame path inside its node; do not use cross-AZ frame transport to share analysis state. The diagram is a logical pattern: confirm the number of ingest copies, exact MediaConnect protocol/profile, GPU count per node, output fan-out and edge selector topology against the chosen AWS Region and broadcaster handoff.
+![Proposed 2026 FIFA World Cup distribution via SRT: stadiums to an IBC with main and backup SRT gateways, a central data centre, regional edge data centres and television station headquarters (proposed design, not an official solution)](images/51dcptPsSZTZfTrHIUNz89dn-7Sl7SkaRY7d3Q9aInbFOVCUMKWV9GFzPxy36woc3y2AXI5rzCoor39KsnDJfZbm5Xihx8vtFWWsBWNA6AEhkOKF9UTgr94at0elXY4cmCpgrSAn15KJfukYg9AnJosrEFPVZvRtgFH2S5aNHp6j2taGmL3PmmlR8evK4hE7.jpeg "Multi-stadium contribution to regional edge distribution")
 
 ### 3.4 Component mapping: current → target
 | Current | AWS target | Notes / traps |
@@ -423,6 +430,8 @@ The two live replicas receive equivalent source media over independent paths and
 | CI engine builds | CodeBuild/CodePipeline/GitHub Actions on GPU runners | One engine per (GPU arch × shape profile × precision) |
 | Batch training | SageMaker / AWS Batch / EKS + Volcano/Kueue on Spot | Spot fine offline, never live |
 
+![Kiloview E1/E2 H.264 SRT encoders pushing SDI and HDMI sources to a Callaba Gateway SRT listener providing multiview, recording, playback and routing](images/3pIcfX9MWqiGn3Ytzequ2UiDnmTt6N80P856O2NqeszWB4ELV-RjTf82FScXzuLvSebeHJqDytZWCCktvy6DCJGmqcKolpQsHpah_j4S_A2sidZUi6ejII05lvmWMgQ8O_TeV320SqI_-zMNRkb-78O4skqcclhgawg3fhYFPp96kwYruzINK7N4atPFy-Wt.jpeg "SRT push ingest to a cloud gateway listener")
+
 ### 3.5 Transport decision table
 | Transport | Latency | Loss recovery | AWS fit | Use |
 | --- | --- | --- | --- | --- |
@@ -438,6 +447,8 @@ The two live replicas receive equivalent source media over independent paths and
 **Per-flow bandwidth caveat:** AWS documents a 5 Gb/s single-flow limit when two instances are not in the same cluster placement group; a cluster placement group can raise this to 10 Gb/s. ENA Express can provide up to 25 Gb/s between eligible instances in the same AZ. These are instance-to-instance limits, not guarantees for public internet, MediaConnect or every network path. Validate packet size, UDP behaviour, sustained bandwidth and instance-size baselines for the actual topology. [V]
 
 **Placement-group and reservation trade-off:** a rack-level spread placement group supports at most seven running instances per AZ per group. EC2 On-Demand Capacity Reservations can be used with cluster placement groups, but not with spread or partition placement groups. Cluster placement improves intra-group latency/throughput but is AZ-local and may correlate hardware placement. Default placement is often a reasonable starting point for independent nodes; use cluster placement only when measured intra-node/cluster traffic benefits justify it. Keep A/B replicas in separate AZs. Do not combine a spread-placement recommendation with an ODCR design without checking this incompatibility.
+
+![SDI-to-SRT gateway in a studio calling a cloud SRT-to-SRT gateway that listens, with sites 1..N (London, Berlin, Paris) connecting as SRT callers; labels in Chinese](images/ytp4f5RTyZxptnLNFBqXE1t2LvebEx8LeoG0JQ2t4f4pgqAWm2sKpmunD_iaIBON6JYeejUhrxr5L592EQCCuhhKCsXrOKZgw2RUKY4HJw-9mh3pHCBvWWdFXAHKQi_rPzNUeJRhKJbXc6IfqyPib45jwdSWgHH6ZhwkWsPRG4tUX6YI-1yA8inNrOrvQfah.jpeg "SRT caller/listener fan-out via a cloud gateway")
 
 ### 3.6 EKS design specifics that actually matter here
 
@@ -517,7 +528,7 @@ Consult **NVIDIA's Video Encode/Decode GPU Support Matrix** for authoritative en
 
 ### 3.8 HA / failover design (the hard part)
 
-**Frame/field arithmetic first:** a 2-hour 50p output contains 360,000 frames; a 1080i50 output contains 360,000 fields (180,000 interlaced frame pairs). At 99.99% good output units, 36 units are bad—about 0.72 s at a 20 ms unit interval. To average fewer than one bad unit per match requires about **99.99972% good units**. Define whether the contractual unit is a progressive frame, an interlaced field or a complete interlaced frame. This availability target requires precomputed standby and frame/field-aware switching; restarts cannot meet it.
+**Frame/field arithmetic first:** a 2-hour 50p output contains 360,000 frames; a 1080i50 output contains 360,000 fields (180,000 interlaced frame pairs). At 99.99% good output units, 36 units are bad-about 0.72 s at a 20 ms unit interval. To average fewer than one bad unit per match requires about **99.99972% good units**. Define whether the contractual unit is a progressive frame, an interlaced field or a complete interlaced frame. This availability target requires precomputed standby and frame/field-aware switching; restarts cannot meet it.
 
 Design:
 
@@ -549,24 +560,26 @@ The selector may operate on baseband frames or on compressed streams only if the
 
 1. **Determinism is a requirement, not an optimisation.** If A and B use different GPU architectures, different TensorRT engines, TF32 vs FP32, non-deterministic reductions, or cuDNN autotuning, their mattes differ by sub-pixels → the switch itself becomes a visible flicker. **Pin GPU model, engine, precision, and deterministic algorithm selection; verify with bit/PSNR comparison in CI.**
 2. **Independent trackers can diverge even when kernels are deterministic.** A and B must consume the same ordered source frames/fields, timestamps, calibration, model, playlist and configuration, and must initialise/reset temporal state under the same rules. Deterministic kernels reduce divergence but do not correct different inputs, packet loss or state initialisation. Do not add a synchronous cross-AZ state dependency to the frame path; instead detect divergence, fail to clean when confidence is insufficient, and prove recovery with recorded and injected-fault tests.
-3. **Failover must be time-continuous.** A/B outputs and the clean bypass must carry a common source-time/frame identity. The clean path needs a calibrated delay line and the selector must switch on frame/field boundaries using embedded timecode or a validated frame counter—not when an asynchronous health check happens to fire. Also align PTS/DTS, GOP/IDR boundaries and audio/ANC delay. Test switching after decode as well as at packet level.
+3. **Failover must be time-continuous.** A/B outputs and the clean bypass must carry a common source-time/frame identity. The clean path needs a calibrated delay line and the selector must switch on frame/field boundaries using embedded timecode or a validated frame counter-not when an asynchronous health check happens to fire. Also align PTS/DTS, GOP/IDR boundaries and audio/ANC delay. Test switching after decode as well as at packet level.
 
 **Important MediaConnect distinction:** MediaConnect source *Merge* is packet recovery for binary-identical redundant streams (typically from the same encoder); it is not a frame-accurate selector for two independently rendered A/B outputs. MediaConnect source *Failover* changes source after 500 ms without data in the documented flow behaviour, which is far slower than a one-frame target. SRT sources support failover mode only (no merge), and ST 2110 JPEG XS and CDI sources do not support source failover. Do not use either as the sole implementation of the DBR A/B-to-clean switch; prove a separate broadcast-aware selector at the edge.
 
 **Multi-region DR:** cold/warm standby in a second region is feasible but you must double capacity reservations and accept a longer path. For most operators the pragmatic tiering is: AZ redundancy for every match, region redundancy only for tier-1 competitions, with contractual clarity about what happens in a regional impairment.
 
-### 3.9 What AWS services to use — and what not to use
+### 3.9 What AWS services to use - and what not to use
 | Need | Use | Do not use | Why |
 | --- | --- | --- | --- |
-| Contribution transport | MediaConnect for supported SRT, RIST Simple, Zixi, RTP and ST 2110 JPEG XS flows; or self-managed gateways | — | Managed transport reduces undifferentiated ops, but protocol profiles, encryption, failover semantics and quotas must be checked; use a gateway where Main-profile RIST or unsupported behaviour is required |
+| Contribution transport | MediaConnect for supported SRT, RIST Simple, Zixi, RTP and ST 2110 JPEG XS flows; or self-managed gateways | - | Managed transport reduces undifferentiated ops, but protocol profiles, encryption, failover semantics and quotas must be checked; use a gateway where Main-profile RIST or unsupported behaviour is required |
 | The CV + compositing itself | Your own containers on EKS + EC2 GPU | MediaLive / MediaConvert / any managed transcode service | They cannot run your segmentation/warp/composite chain. This is your product; it stays yours |
-| OTT packaging/distribution | MediaPackage + CloudFront | — | Different latency regime; separate pipeline |
+| OTT packaging/distribution | MediaPackage + CloudFront | - | Different latency regime; separate pipeline |
 | Catch‑up re‑renders with other ads | EKS/Batch offline GPU jobs (your renderer) | MediaConvert alone | Same compositing requirement |
 | Training | SageMaker / Batch / EKS+Kueue on Spot | live node pools | Never mix training with on‑air GPUs |
 | Orchestration | Step Functions + EventBridge Scheduler | cron in a pod | Fixture calendar is business logic; make it observable and retryable |
 | Analytics/proof‑of‑play | S3 + Iceberg + Athena | per‑frame rows in an RDBMS | Volume |
 | Secrets/keys | Secrets Manager, KMS, Pod Identity | env vars, baked creds |  |
-| Chaos testing | AWS FIS — outside live windows only | during matches | Obvious |
+| Chaos testing | AWS FIS - outside live windows only | during matches | Obvious |
+
+![SRT ingest from hardware, software and mobile encoders to an origin with SRT gateway and packager, distributing via HLS/DASH to a CDN and home devices, via SRT to an edge media server (WebRTC/SLDP) and to a broadcast-facility decoder](images/S-CBDPSQZfN65XwEfFFPxPrPWv51zNrY-mUHEidqFB-jOXVj1kYYoJQMkTPI6FuWlExlt8T_d7kb-Em5AFv5zJh7yvm4w0jVuv-hdLL-OxriT9ZzprCsficT0am_u5_9lr_ECGFTIWAY_r8kI9qbtboloP3xJxhLtKlBiHhcx1_WUGriBSZ_cHaOZK1c9kMX.jpeg "SRT contribution versus HLS/DASH distribution")
 
 ### 3.10 Capacity & cost model (method + worked example)
 
@@ -588,7 +601,7 @@ Peak per AZ = max over s of G_AZ(s)  ← reserve this independently in both AZs
 Mean = total weekly GPU-hours / 168  ← useful for cost reporting, not live-peak capacity
 ```
 
-**Worked example [A — all inputs assumed, replace with your real calendar and benchmarks]:**
+**Worked example [A - all inputs assumed, replace with your real calendar and benchmarks]:**
 
 - Peak slot: 9 concurrent matches, average 12 markets each.
 - Measured density: 6 market outputs per render GPU at 1080p50 low-delay (illustrative assumption; benchmark the chosen GPU and codec path).
@@ -622,30 +635,32 @@ Live + pre-warm GPU-hours per slot ≈ 10 nodes × (2.5 h match window + 0.75 h 
 + egress: if both A and B replicas send all outputs continuously to the physical selector: 12 markets × 9 matches × 20 Mb/s × 2.5 h × 2 ≈ 4.86 TB → ~$437 at the illustrative $0.09/GB rate [V region, tier, destination and transfer path]. If the selector is hosted elsewhere or standby output is not continuously transported, recalculate from the actual topology.
 + MediaConnect flow-hours + per-GB [V]
 + storage, control plane, observability and EKS cluster-hour charges [V current standard/extended support rate and region]
-+ offline training/QA (Spot) — usually small
++ offline training/QA (Spot) - usually small
 ```
 
 **Levers, ranked by expected impact:**
 
-1. **Share the analysis stage across markets (P3)** — biggest structural saving.
-2. **Raise measured streams/GPU** via preset tuning, GPU-resident zero-copy compositing, and correct instance choice — direct divisor on your dominant cost.
-3. **Option C (edge rendering)** — can remove per-market cloud encoding and most egress by rendering at the edge; the saving is offset by edge fleet, timing, fail-to-clean and operations cost (§3.2), so evaluate it at high K.
+1. **Share the analysis stage across markets (P3)** - biggest structural saving.
+2. **Raise measured streams/GPU** via preset tuning, GPU-resident zero-copy compositing, and correct instance choice - direct divisor on your dominant cost.
+3. **Option C (edge rendering)** - can remove per-market cloud encoding and most egress by rendering at the edge; the saving is offset by edge fleet, timing, fail-to-clean and operations cost (§3.2), so evaluate it at high K.
 4. **Separate capacity reservation from billing discounts.** Use zonal ODCRs (or another currently eligible capacity product) for the live capacity floor. Compute Savings Plans can discount eligible compute spend across a broad range of EC2 usage; EC2 Instance Savings Plans generally offer a larger discount but are scoped to an instance family in a Region. Neither Savings Plan reserves launch capacity. Verify current terms and eligible usage [V].
 5. **Spot for everything offline, never live.**
-6. **Right-size the pre-warm window** and shut down promptly after the final whistle (but handle extra time/penalties — do not tear down at 90+15).
+6. **Right-size the pre-warm window** and shut down promptly after the final whistle (but handle extra time/penalties - do not tear down at 90+15).
 
 **Cost traps specific to this workload:**
 
-- **Unused On-Demand Capacity Reservations are billed** — a postponed match still costs you; model postponed fixtures and idle reserved capacity explicitly.
+- **Unused On-Demand Capacity Reservations are billed** - a postponed match still costs you; model postponed fixtures and idle reserved capacity explicitly.
 - **Capacity Blocks for ML are limited to the instance types and Regions in the current published eligibility table; the table reviewed here does not list the G-family candidates.** Do not assume G7/G7e can be reserved with Capacity Blocks; use a suitable ODCR where offered and re-check eligibility at design freeze.
 - **Cross-AZ raw media is approximately $20/h/stream** for the illustrative 1080p50 v210 assumptions in §1.3; actual transfer pricing and billing path vary.
 - **NAT gateway processing on media traffic:** do not route the live media plane through NAT. Use VPC endpoints for supported AWS service traffic (for example, S3/ECR/STS/CloudWatch); design internet or private media transport separately.
-- **Extended EKS support pricing on old versions** [V] — a version-upgrade procrastination tax.
+- **Extended EKS support pricing on old versions** [V] - a version-upgrade procrastination tax.
 - **Observability cardinality:** per-frame, per-market, per-board metrics will cost more than some of your GPUs. Aggregate at the edge, sample traces.
+
+![GlobalM live video network: encoder to stream receiver pod, SRT orchestration on AWS, and stream sender pods delivering to separate customer decoders](images/ASGct8yKxzAsFwuO-XUUvz4MZ2TTdjP5aK19TijIufgANG3ITXNBTZO3wJaHnD5XNDiUjriZUV7jz22vv1Qfw4WEMpXe517sz56JqwnZgj_Utq5ZCB0Y_llxeG5EuKs4p1rcGplFnU8DciDYlbpDVbcP0Tl4f04i2vEvW3tONJQib4-XIavEgi1hCu4j7z2E.jpeg "Multi-destination SRT distribution with sender pods")
 
 ### 3.11 Observability & SLOs
 
-**Three distinct layers — do not conflate them:**
+**Three distinct layers - do not conflate them:**
 
 | Layer | Question | Signal |
 | --- | --- | --- |
@@ -655,7 +670,7 @@ Live + pre-warm GPU-hours per slot ≈ 10 nodes × (2.5 h match window + 0.75 h 
 
 **The silent-failure problem deserves its own alarm:** if the model returns an empty matte, the output is a perfectly valid video stream showing the original ads. Every infrastructure and pipeline metric is green. The client is not receiving what they bought. **Only semantic monitoring catches this. Build it as a first-class SLO, sampled from the egress (post-encode), not from the compositor's internal state.**
 
-**Candidate SLOs [A/R] — agree the measurement contract before using these as commitments:**
+**Candidate SLOs [A/R] - agree the measurement contract before using these as commitments:**
 
 - **Visible artefacts:** target fewer than one adjudicated visible-artefact incident per match per market. Define an incident as a contiguous run of bad frames/fields, specify the severity threshold, and measure at the decoded egress; do not equate this directly with a simple per-frame availability percentage.
 - **Time-to-fail-to-clean:** target ≤ 1 progressive frame or interlaced field, with no programme-time jump. This is a stringent design target that must be demonstrated with the physical selector and clean delay line.
@@ -666,7 +681,7 @@ Live + pre-warm GPU-hours per slot ≈ 10 nodes × (2.5 h match window + 0.75 h 
 ### 3.12 Security, rights, compliance
 
 - **Contribution feeds are high-value, piracy-attractive:** use protocol encryption where supported (for example, configured SRT/Zixi encryption), private paths where practical, IP allowlists, no unnecessary public media endpoints and per-market entitlements. AWS Elemental MediaConnect currently documents that it does **not** support encryption for RIST sources or outputs; protect that leg with a private network or an independently qualified encrypted gateway, and verify the complete path end to end.
-- **Forensic watermarking per market** for leak attribution — costs compute; decide per competition tier.
+- **Forensic watermarking per market** for leak attribution - costs compute; decide per competition tier.
 - **IAM least privilege** via EKS Pod Identity, KMS for assets/logs, private EKS endpoint, VPC endpoints, no credentials in images.
 - **Data residency:** EU competitions may require EU processing/logs; region choice is then a legal constraint, not a latency optimisation.
 - **GDPR/privacy:** incidental crowd images in recorded material may be personal data. Apply data minimisation, retention/access controls and a documented privacy assessment; complete a DPIA where the proposed processing is likely to result in high risk or otherwise required. Avoid treating a DPIA as automatically required for every form of audience analytics.
@@ -734,7 +749,7 @@ Live + pre-warm GPU-hours per slot ≈ 10 nodes × (2.5 h match window + 0.75 h 
 | DC‑19 | Capacity fragmentation | Free GPUs exist but not with the right NUMA/NIC/topology | 🟡 | Topology‑aware scheduling, defragmentation windows |
 | DC‑20 | Refresh/depreciation cliff | Whole fleet ages together; big periodic capex | 🟠 | Staggered refresh; cloud shifts this to opex (at a price) |
 
-### 4.C AWS/EKS challenges — capacity, compute, network and operations
+### 4.C AWS/EKS challenges - capacity, compute, network and operations
 
 | ID | Challenge | Mechanism | Sev | Mitigation |
 | --- | --- | --- | --- | --- |
@@ -823,7 +838,7 @@ Live + pre-warm GPU-hours per slot ≈ 10 nodes × (2.5 h match window + 0.75 h 
 
 ---
 
-## 6. What should not move to AWS (and why — logical, not sentimental)
+## 6. What should not move to AWS (and why - logical, not sentimental)
 
 | Function | Why it stays physical |
 | --- | --- |
@@ -836,7 +851,7 @@ Live + pre-warm GPU-hours per slot ≈ 10 nodes × (2.5 h match window + 0.75 h 
 | Final broadcaster playout / MCR handoff | Not yours, and genlocked to their plant |
 | Last‑resort clean fallback | Must work when the cloud path does not |
 
-Everything else — CV analysis, compositing, encoding, ad scheduling, proof-of-play, training, archive — is a legitimate cloud candidate.
+Everything else - CV analysis, compositing, encoding, ad scheduling, proof-of-play, training, archive - is a legitimate cloud candidate.
 
 ---
 
@@ -852,12 +867,12 @@ Everything else — CV analysis, compositing, encoding, ad scheduling, proof-of-
 
 ### Benchmarks to run (these determine the entire cost model)
 
-6. Per-stage latency and GPU cost at required formats on G7 (RTX PRO 4500 Blackwell), G7e (RTX PRO 6000 Blackwell), G6 (L4), G5 (A10G) and G6e (L40S), where available — including codec-specific decode/encode, NVENC/NVDEC occupancy, memory bandwidth, PCIe/P2P transfers and p99.9 latency.
+6. Per-stage latency and GPU cost at required formats on G7 (RTX PRO 4500 Blackwell), G7e (RTX PRO 6000 Blackwell), G6 (L4), G5 (A10G) and G6e (L40S), where available - including codec-specific decode/encode, NVENC/NVDEC occupancy, memory bandwidth, PCIe/P2P transfers and p99.9 latency.
 7. Measured market outputs per GPU at your exact encode preset, with ≥40% headroom, at p99.9.
 8. Cold-start time end-to-end (node → first correct frame) with and without SOCI/AMI baking.
-9. Determinism test: A/B on identical GPU model/engine — bit equality or measured PSNR of mattes.
+9. Determinism test: A/B on identical GPU model/engine - bit equality or measured PSNR of mattes.
 10. Per-venue contribution RTT/loss distribution over a season; derived SRT latency per venue.
-11. Failover impact test: injected pod kill, GPU XID simulation, AZ isolation — measured in frames, not seconds.
+11. Failover impact test: injected pod kill, GPU XID simulation, AZ isolation - measured in frames, not seconds.
 12. Semantic monitor efficacy: inject an empty matte and confirm detection latency.
 
 ### AWS specifics to verify [V] before design freeze
@@ -893,9 +908,9 @@ Everything else — CV analysis, compositing, encoding, ad scheduling, proof-of-
 
 The next design iteration requires the real fixture calendar, concurrent match counts, markets per match, source/output formats, contractual latency and reliability targets, plus the benchmark results listed in §7. With those inputs, the capacity and cost models can be recalculated, instance families selected by role, and the node-pool/pod specifications and failover state machine completed.
 
-# DBR Architecture — Glossary of Abbreviations
+# Glossary of Abbreviations
 
-Companion to `DBR_Architecture-2`. The source document expands very few of these terms itself, so the expansions below are standard industry usage rather than quotations from it. Ubiquitous terms (CPU, TCP/UDP, NAT, VPN, API, SDK) are omitted.
+The source document expands very few of these terms itself, so the expansions below are standard industry usage rather than quotations from it. Ubiquitous terms (CPU, TCP/UDP, NAT, VPN, API, SDK) are omitted.
 
 ## Document conventions
 
